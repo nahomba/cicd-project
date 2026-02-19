@@ -13,7 +13,7 @@ pipeline {
         // SonarQube Configuration
         SONARQUBE_ENV = 'sonarqube'
         SONAR_PROJECT_KEY = 'appointment-app'
-        SONAR_HOST_URL = 'http://your-sonarqube-server.com' // ⚠️ CHANGE THIS!
+        SONAR_HOST_URL = 'http://localhost:9000' // ⚠️ CHANGE THIS!
         SONAR_AUTH_TOKEN = credentials('sonar-auth-token')  // Using Jenkins credentials
         
         // Kubernetes Configuration
