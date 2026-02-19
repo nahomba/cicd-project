@@ -107,4 +107,50 @@ pipeline {
                 )]) {
                     sh """
                         echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                        docker push ${DOCKER_IMAGE
+                        docker push ${DOCKER_IMAGE_VERSION}
+                        docker push ${DOCKER_IMAGE_LATEST}
+                        docker logout
+                    """
+                }
+            }
+        }
+
+        stage('📋 Helm Deploy to Minikube') {
+            steps {
+                sh """
+                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+                    --namespace ${K8S_NAMESPACE} \
+                    --create-namespace \
+                    --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
+                    --set image.tag=${DOCKER_IMAGE_TAG} \
+                    --wait
+                """
+            }
+        }
+
+        stage('✅ Verify Deployment') {
+            steps {
+                sh """
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                    kubectl get svc -n ${K8S_NAMESPACE}
+                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+        }
+
+        success {
+            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
+        }
+
+        failure {
+            echo '❌ PIPELINE FAILED — CHECK LOGS'
+        }
+    }
+}
