@@ -13,6 +13,7 @@ pipeline {
         // SonarQube Configuration
         SONARQUBE_ENV     = 'sonarqube'
         SONAR_PROJECT_KEY = 'appointment-app'
+        SONAR_CREDENTIALS_ID = 'sonarqube-token'  // Add this line for SonarQube token credential ID
 
         // Kubernetes / Helm
         K8S_NAMESPACE     = 'default'
@@ -38,11 +39,14 @@ pipeline {
 
         stage('🔍 SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    sh """
-                        ./mvnw clean verify sonar:sonar \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY}
-                    """
+                withCredentials([string(credentialsId: "${SONAR_CREDENTIALS_ID}", variable: 'SONAR_TOKEN')]) {
+                    withSonarQubeEnv("${SONARQUBE_ENV}") {
+                        sh """
+                            ./mvnw clean verify sonar:sonar \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.token=${SONAR_TOKEN}
+                        """
+                    }
                 }
             }
         }
@@ -103,50 +107,4 @@ pipeline {
                 )]) {
                     sh """
                         echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                        docker push ${DOCKER_IMAGE_VERSION}
-                        docker push ${DOCKER_IMAGE_LATEST}
-                        docker logout
-                    """
-                }
-            }
-        }
-
-        stage('📋 Helm Deploy to Minikube') {
-            steps {
-                sh """
-                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
-                    --namespace ${K8S_NAMESPACE} \
-                    --create-namespace \
-                    --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
-                    --set image.tag=${DOCKER_IMAGE_TAG} \
-                    --wait
-                """
-            }
-        }
-
-        stage('✅ Verify Deployment') {
-            steps {
-                sh """
-                    kubectl get pods -n ${K8S_NAMESPACE}
-                    kubectl get svc -n ${K8S_NAMESPACE}
-                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
-                """
-            }
-        }
-    }
-
-    post {
-        always {
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-        }
-
-        success {
-            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
-        }
-
-        failure {
-            echo '❌ PIPELINE FAILED — CHECK LOGS'
-        }
-    }
-}
+                        docker push ${DOCKER_IMAGE
