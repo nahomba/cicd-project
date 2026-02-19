@@ -10,7 +10,7 @@ pipeline {
         DOCKER_IMAGE_LATEST  = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:latest"
         DOCKER_IMAGE_VERSION = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
 
-        // SonarQube Configuration (managed by Jenkins)
+        // SonarQube Configuration
         SONARQUBE_ENV     = 'sonarqube'
         SONAR_PROJECT_KEY = 'appointment-app'
 
@@ -24,7 +24,6 @@ pipeline {
     }
 
     stages {
-
         stage('🧹 Cleanup Workspace') {
             steps {
                 cleanWs()
@@ -88,6 +87,8 @@ pipeline {
                     trivy image \
                     --severity ${TRIVY_SEVERITY} \
                     --exit-code 0 \
+                    --format json \
+                    --output trivy-report.json \
                     ${DOCKER_IMAGE_VERSION}
                 """
             }
@@ -127,7 +128,7 @@ pipeline {
             steps {
                 sh """
                     kubectl get pods -n ${K8S_NAMESPACE}
-                    kubectl get svc  -n ${K8S_NAMESPACE}
+                    kubectl get svc -n ${K8S_NAMESPACE}
                     minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
                 """
             }
@@ -136,10 +137,8 @@ pipeline {
 
     post {
         always {
-            node {
-                archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-            }
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
         }
 
         success {
