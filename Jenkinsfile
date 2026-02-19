@@ -1,152 +1,153 @@
 pipeline {
     agent any
-    
+
     environment {
         // Docker Hub Configuration
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        DOCKER_HUB_USERNAME = 'queenivas'  // ⚠️ CHANGE THIS!
-        DOCKER_IMAGE_NAME = 'appointment-app'
-        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
-        DOCKER_IMAGE_LATEST = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:latest"
-        DOCKER_IMAGE_VERSIONED = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
-        
-        // SonarQube Configuration
-        SONARQUBE_ENV = 'sonarqube'
+        DOCKER_HUB_USERNAME  = 'queenivas'
+        DOCKER_IMAGE_NAME    = 'appointment-app'
+        DOCKER_IMAGE_TAG     = "${BUILD_NUMBER}"
+        DOCKER_IMAGE_LATEST  = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:latest"
+        DOCKER_IMAGE_VERSION = "${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+
+        // SonarQube Configuration (managed by Jenkins)
+        SONARQUBE_ENV     = 'sonarqube'
         SONAR_PROJECT_KEY = 'appointment-app'
-        SONAR_HOST_URL = 'http://localhost:9000' // ⚠️ CHANGE THIS!
-        SONAR_AUTH_TOKEN = credentials('sonar-auth-token')  // Using Jenkins credentials
-        
-        // Kubernetes Configuration
-        K8S_NAMESPACE = 'default'
-        
-        // Helm Configuration
-        HELM_CHART_PATH = './helm/appointment-app'
+
+        // Kubernetes / Helm
+        K8S_NAMESPACE     = 'default'
+        HELM_CHART_PATH   = './helm/appointment-app'
         HELM_RELEASE_NAME = 'appointment-app'
-        
-        // Trivy Configuration
+
+        // Trivy
         TRIVY_SEVERITY = 'HIGH,CRITICAL'
     }
-    
+
     stages {
+
         stage('🧹 Cleanup Workspace') {
             steps {
-                echo '🧹 Cleaning workspace...'
                 cleanWs()
             }
         }
-        
+
         stage('📥 Checkout') {
             steps {
-                echo '📥 Checking out code from repository...'
                 checkout scm
             }
         }
-        
+
         stage('🔍 SonarQube Analysis') {
             steps {
-                script {
-                    echo '🔍 Running SonarQube code quality analysis...'
-                    withSonarQubeEnv("${SONARQUBE_ENV}") {
-                        sh """
-                            ./mvnw clean verify sonar:sonar \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.projectName='Appointment App' \
-                            -Dsonar.host.url=${SONAR_HOST_URL} \
-                            -Dsonar.login=${SONAR_AUTH_TOKEN}
-                        """
-                    }
+                withSonarQubeEnv("${SONARQUBE_ENV}") {
+                    sh """
+                        ./mvnw clean verify sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY}
+                    """
                 }
             }
         }
-        
-        stage('⏳ Quality Gate') {
+
+        stage('⏳ Sonar Quality Gate') {
             steps {
-                script {
-                    echo '⏳ Waiting for SonarQube Quality Gate result...'
-                    timeout(time: 5, unit: 'MINUTES') {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            error "❌ Pipeline aborted due to quality gate failure: ${qg.status}"
-                        } else {
-                            echo "✅ Quality Gate passed!"
-                        }
-                    }
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
-        
-        // Continue with the remaining stages...
-        
+
         stage('🔨 Build & Test') {
             steps {
-                echo '🔨 Building application and running tests...'
                 sh './mvnw clean test'
             }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
-                    echo '📊 Test results published'
                 }
             }
         }
-        
-        // Additional stages...
 
-        stage('📦 Helm Package') {
+        stage('📦 Package') {
             steps {
-                script {
-                    echo '📦 Packaging Helm chart...'
+                sh './mvnw clean package -DskipTests'
+            }
+        }
+
+        stage('🐳 Docker Build') {
+            steps {
+                sh """
+                    docker build -t ${DOCKER_IMAGE_VERSION} .
+                    docker tag ${DOCKER_IMAGE_VERSION} ${DOCKER_IMAGE_LATEST}
+                """
+            }
+        }
+
+        stage('🔒 Trivy Image Scan') {
+            steps {
+                sh """
+                    trivy image \
+                    --severity ${TRIVY_SEVERITY} \
+                    --exit-code 0 \
+                    ${DOCKER_IMAGE_VERSION}
+                """
+            }
+        }
+
+        stage('📤 Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: DOCKER_CREDENTIALS_ID,
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh """
-                        helm package ${HELM_CHART_PATH} --version 1.0.${BUILD_NUMBER}
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE_VERSION}
+                        docker push ${DOCKER_IMAGE_LATEST}
+                        docker logout
                     """
-                    echo '✅ Helm chart packaged'
                 }
             }
         }
-        
-        // Final stages...
-    }
-    
-    post {
-        success {
-            script {
-                echo '✅ ========================================='
-                echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
-                echo '✅ ========================================='
-                echo "📦 Docker Image: ${DOCKER_IMAGE_VERSIONED}"
-                echo "🔗 Docker Hub: https://hub.docker.com/r/${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME}"
-                echo "☸️  Kubernetes Namespace: ${K8S_NAMESPACE}"
-                echo "📊 Helm Release: ${HELM_RELEASE_NAME}"
-                
-                // Get service URL
-                def serviceUrl = sh(
-                    script: "minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url 2>/dev/null || echo 'Run: minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE}'",
-                    returnStdout: true
-                ).trim()
-                echo "🌐 Application URL: ${serviceUrl}"
-                echo '✅ ========================================='
+
+        stage('📋 Helm Deploy to Minikube') {
+            steps {
+                sh """
+                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+                    --namespace ${K8S_NAMESPACE} \
+                    --create-namespace \
+                    --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
+                    --set image.tag=${DOCKER_IMAGE_TAG} \
+                    --wait
+                """
             }
         }
-        
-        failure {
-            echo '❌ ========================================='
-            echo '❌ PIPELINE FAILED!'
-            echo '❌ ========================================='
-            echo '📋 Check the console output for details'
-            echo '❌ ========================================='
+
+        stage('✅ Verify Deployment') {
+            steps {
+                sh """
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                    kubectl get svc  -n ${K8S_NAMESPACE}
+                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
+                """
+            }
         }
-        
+    }
+
+    post {
         always {
-            echo '🧹 Performing final cleanup...'
-            
-            // Archive important artifacts
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-            
-            // Publish test results
-            junit '**/target/surefire-reports/*.xml'
-            
-            echo '✅ Cleanup completed'
+            node {
+                archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+            }
+        }
+
+        success {
+            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
+        }
+
+        failure {
+            echo '❌ PIPELINE FAILED — CHECK LOGS'
         }
     }
 }
