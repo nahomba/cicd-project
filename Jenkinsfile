@@ -57,7 +57,7 @@ pipeline {
 
         stage('⏳ Sonar Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
+                timeout(time: 10, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -163,7 +163,7 @@ pipeline {
         }
 
         failure {
-            echo ' PIPELINE FAILED — CHECK LOGS'
+            echo '❌ PIPELINE FAILED — CHECK LOGS'
         }
     }
 }
