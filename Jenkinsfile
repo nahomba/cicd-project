@@ -26,6 +26,9 @@ pipeline {
 
         // Trivy
         TRIVY_SEVERITY = 'HIGH,CRITICAL'
+        
+        // Kubeconfig
+        KUBECONFIG = '/var/jenkins_home/.kube/config'
     }
 
     stages {
@@ -128,21 +131,17 @@ pipeline {
         stage('📋 Helm Deploy to Minikube') {
             steps {
                 script {
-                    try {
-                        sh """
-                            helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
-                            --namespace ${K8S_NAMESPACE} \
-                            --create-namespace \
-                            --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
-                            --set image.tag=${DOCKER_IMAGE_TAG} \
-                            --wait \
-                            --timeout 5m
-                        """
-                    } catch (Exception e) {
-                        echo "Deployment failed, rolling back..."
-                        sh "helm rollback ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE}"
-                        throw e
-                    }
+                    sh """
+                        export KUBECONFIG=${KUBECONFIG}
+                        kubectl cluster-info
+                        helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+                        --namespace ${K8S_NAMESPACE} \
+                        --create-namespace \
+                        --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
+                        --set image.tag=${DOCKER_IMAGE_TAG} \
+                        --wait \
+                        --timeout 5m
+                    """
                 }
             }
         }
@@ -150,9 +149,10 @@ pipeline {
         stage('✅ Verify Deployment') {
             steps {
                 sh """
+                    export KUBECONFIG=${KUBECONFIG}
                     kubectl get pods -n ${K8S_NAMESPACE}
                     kubectl get svc -n ${K8S_NAMESPACE}
-                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
+                    kubectl get deployment -n ${K8S_NAMESPACE}
                 """
             }
         }
