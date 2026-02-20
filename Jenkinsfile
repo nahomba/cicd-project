@@ -19,10 +19,9 @@ pipeline {
         SONAR_PROJECT_KEY = 'appointment-app'
         SONAR_CREDENTIALS_ID = 'sonarqube-token'
 
-        // Kubernetes / Helm
+        // Kubernetes
         K8S_NAMESPACE     = 'default'
-        HELM_CHART_PATH   = './helm/appointment-app'
-        HELM_RELEASE_NAME = 'appointment-app'
+        APP_NAME          = 'appointment-app'
 
         // Trivy
         TRIVY_SEVERITY = 'HIGH,CRITICAL'
@@ -128,19 +127,63 @@ pipeline {
             }
         }
 
-        stage('📋 Helm Deploy to Minikube') {
+        stage('🚀 Deploy to Kubernetes') {
             steps {
                 script {
                     sh """
                         export KUBECONFIG=${KUBECONFIG}
-                        kubectl cluster-info
-                        helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
-                        --namespace ${K8S_NAMESPACE} \
-                        --create-namespace \
-                        --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
-                        --set image.tag=${DOCKER_IMAGE_TAG} \
-                        --wait \
-                        --timeout 5m
+                        
+                        # Create deployment manifest
+                        cat > k8s-deployment.yaml <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+  namespace: ${K8S_NAMESPACE}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      containers:
+      - name: ${APP_NAME}
+        image: ${DOCKER_IMAGE_VERSION}
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${APP_NAME}
+  namespace: ${K8S_NAMESPACE}
+spec:
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+    protocol: TCP
+  selector:
+    app: ${APP_NAME}
+EOF
+                        
+                        # Apply deployment
+                        kubectl apply -f k8s-deployment.yaml
+                        
+                        # Wait for rollout
+                        kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=5m
                     """
                 }
             }
@@ -150,9 +193,12 @@ pipeline {
             steps {
                 sh """
                     export KUBECONFIG=${KUBECONFIG}
-                    kubectl get pods -n ${K8S_NAMESPACE}
-                    kubectl get svc -n ${K8S_NAMESPACE}
-                    kubectl get deployment -n ${K8S_NAMESPACE}
+                    echo "=== Pods ==="
+                    kubectl get pods -n ${K8S_NAMESPACE} -l app=${APP_NAME}
+                    echo "=== Services ==="
+                    kubectl get svc -n ${K8S_NAMESPACE} ${APP_NAME}
+                    echo "=== Deployment ==="
+                    kubectl get deployment -n ${K8S_NAMESPACE} ${APP_NAME}
                 """
             }
         }
@@ -166,6 +212,7 @@ pipeline {
 
         success {
             echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
+            echo "🌐 Access app: minikube service ${APP_NAME} --url"
         }
 
         failure {
