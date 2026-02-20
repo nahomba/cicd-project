@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         // Docker Hub Configuration
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
@@ -13,7 +17,7 @@ pipeline {
         // SonarQube Configuration
         SONARQUBE_ENV     = 'sonarqube'
         SONAR_PROJECT_KEY = 'appointment-app'
-        SONAR_CREDENTIALS_ID = 'sonarqube-token'  // Add this line for SonarQube token credential ID
+        SONAR_CREDENTIALS_ID = 'sonarqube-token'
 
         // Kubernetes / Helm
         K8S_NAMESPACE     = 'default'
@@ -79,7 +83,7 @@ pipeline {
         stage('🐳 Docker Build') {
             steps {
                 sh """
-                    docker build -t ${DOCKER_IMAGE_VERSION} .
+                    docker build --cache-from ${DOCKER_IMAGE_LATEST} -t ${DOCKER_IMAGE_VERSION} .
                     docker tag ${DOCKER_IMAGE_VERSION} ${DOCKER_IMAGE_LATEST}
                 """
             }
@@ -117,40 +121,20 @@ pipeline {
 
         stage('📋 Helm Deploy to Minikube') {
             steps {
-                sh """
-                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
-                    --namespace ${K8S_NAMESPACE} \
-                    --create-namespace \
-                    --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
-                    --set image.tag=${DOCKER_IMAGE_TAG} \
-                    --wait
-                """
-            }
-        }
-
-        stage('✅ Verify Deployment') {
-            steps {
-                sh """
-                    kubectl get pods -n ${K8S_NAMESPACE}
-                    kubectl get svc -n ${K8S_NAMESPACE}
-                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
-                """
-            }
-        }
-    }
-
-    post {
-        always {
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-        }
-
-        success {
-            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
-        }
-
-        failure {
-            echo '❌ PIPELINE FAILED — CHECK LOGS'
-        }
-    }
-}
+                script {
+                    try {
+                        sh """
+                            helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+                            --namespace ${K8S_NAMESPACE} \
+                            --create-namespace \
+                            --set image.repository=${DOCKER_HUB_USERNAME}/${DOCKER_IMAGE_NAME} \
+                            --set image.tag=${DOCKER_IMAGE_TAG} \
+                            --wait \
+                            --timeout 5m
+                        """
+                    } catch (Exception e) {
+                        echo "Deployment failed, rolling back..."
+                        sh "helm rollback ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE}"
+                        throw e
+                    }
+                }
