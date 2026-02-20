@@ -163,7 +163,7 @@ pipeline {
         }
 
         failure {
-            echo '❌ PIPELINE FAILED — CHECK LOGS'
+            echo ' PIPELINE FAILED — CHECK LOGS'
         }
     }
 }
