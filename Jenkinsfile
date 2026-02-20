@@ -138,3 +138,32 @@ pipeline {
                         throw e
                     }
                 }
+            }
+        }
+
+        stage('✅ Verify Deployment') {
+            steps {
+                sh """
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                    kubectl get svc -n ${K8S_NAMESPACE}
+                    minikube service ${HELM_RELEASE_NAME} -n ${K8S_NAMESPACE} --url
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+        }
+
+        success {
+            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
+        }
+
+        failure {
+            echo '❌ PIPELINE FAILED — CHECK LOGS'
+        }
+    }
+}
