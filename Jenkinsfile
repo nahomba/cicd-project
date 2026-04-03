@@ -31,19 +31,19 @@ pipeline {
     }
 
     stages {
-        stage('🧹 Cleanup Workspace') {
+        stage(' Cleanup Workspace') {
             steps {
                 cleanWs()
             }
         }
 
-        stage('📥 Checkout') {
+        stage(' Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('🔍 SonarQube Analysis') {
+        stage(' SonarQube Analysis') {
             steps {
                 withCredentials([string(credentialsId: "${SONAR_CREDENTIALS_ID}", variable: 'SONAR_TOKEN')]) {
                     withSonarQubeEnv("${SONARQUBE_ENV}") {
@@ -57,7 +57,7 @@ pipeline {
             }
         }
 
-        stage('⏳ Sonar Quality Gate') {
+        stage(' Sonar Quality Gate') {
             steps {
                 script {
                     try {
@@ -65,13 +65,13 @@ pipeline {
                             waitForQualityGate abortPipeline: false
                         }
                     } catch (Exception e) {
-                        echo "⚠️ Quality Gate check skipped - continuing pipeline"
+                        echo " Quality Gate check skipped - continuing pipeline"
                     }
                 }
             }
         }
 
-        stage('🔨 Build & Test') {
+        stage(' Build & Test') {
             steps {
                 sh './mvnw clean test'
             }
@@ -82,13 +82,13 @@ pipeline {
             }
         }
 
-        stage('📦 Package') {
+        stage(' Package') {
             steps {
                 sh './mvnw clean package -DskipTests'
             }
         }
 
-        stage('🐳 Docker Build') {
+        stage(' Docker Build') {
             steps {
                 sh """
                     docker build --cache-from ${DOCKER_IMAGE_LATEST} -t ${DOCKER_IMAGE_VERSION} .
@@ -97,7 +97,7 @@ pipeline {
             }
         }
 
-        stage('🔒 Trivy Image Scan') {
+        stage(' Trivy Image Scan') {
             steps {
                 sh """
                     trivy image \
@@ -110,7 +110,7 @@ pipeline {
             }
         }
 
-        stage('📤 Push to Docker Hub') {
+        stage(' Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: DOCKER_CREDENTIALS_ID,
@@ -127,7 +127,7 @@ pipeline {
             }
         }
 
-        stage('🚀 Deploy to Kubernetes') {
+        stage(' Deploy to Kubernetes') {
             steps {
                 script {
                     sh """
@@ -189,7 +189,7 @@ EOF
             }
         }
 
-        stage('✅ Verify Deployment') {
+        stage(' Verify Deployment') {
             steps {
                 sh """
                     export KUBECONFIG=${KUBECONFIG}
@@ -211,12 +211,12 @@ EOF
         }
 
         success {
-            echo '✅ PIPELINE COMPLETED SUCCESSFULLY'
-            echo "🌐 Access app: minikube service ${APP_NAME} --url"
+            echo ' PIPELINE COMPLETED SUCCESSFULLY'
+            echo " Access app: minikube service ${APP_NAME} --url"
         }
 
         failure {
-            echo '❌ PIPELINE FAILED — CHECK LOGS'
+            echo ' PIPELINE FAILED — CHECK LOGS'
         }
     }
 }
