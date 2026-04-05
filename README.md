@@ -1,129 +1,197 @@
-# cicd-project
-#  End-to-End DevSecOps Pipeline – Spring Boot Application
+# End-to-End DevSecOps Pipeline – Spring Boot Application
 
-This project demonstrates a **complete DevSecOps pipeline** built around a Spring Boot application, covering:
+## Overview
 
- Code → Build → Test → Security → Container → Deploy → Verify
+This project demonstrates a **complete end-to-end DevSecOps pipeline** built around a Spring Boot application, covering the full software delivery lifecycle:
 
-It showcases real-world practices used in modern platform engineering and DevOps environments.
+**Code → Build → Test → Security → Container → Deploy → Verify**
 
+It reflects **real-world DevOps and platform engineering practices**, integrating quality gates, security scanning, containerization, and automated Kubernetes deployment.
 
-#  Architecture Overview
+---
 
-Application: Spring Boot (Maven)  
-CI/CD: Jenkins Pipeline  
-Security: SonarQube + Trivy  
-Containerization: Docker  
-Deployment: Kubernetes (Minikube)
+## Architecture Overview
 
+- **Application:** Spring Boot (Maven)  
+- **CI/CD:** Jenkins (Declarative Pipeline)  
+- **Code Quality:** SonarQube  
+- **Security Scanning:** Trivy  
+- **Containerization:** Docker  
+- **Deployment:** Kubernetes (Minikube)  
 
-#  Pipeline Flow
+---
 
+## Pipeline Flow
+
+```
 Cleanup → Checkout → SonarQube → Quality Gate → Build & Test → Package → Docker Build → Trivy Scan → Push → Deploy → Verify
+```
 
-Tech Stack
-Java / Spring Boot
-Maven
-Jenkins (Declarative Pipeline)
-SonarQube (Code Quality)
-Trivy (Container Security)
-Docker
-Kubernetes (Minikube)
- DevSecOps Features
- Code Quality
-Integrated SonarQube analysis
-Enforced quality gates before continuing pipeline
- Security Scanning
-Integrated Trivy image scanning
-Detects vulnerabilities (HIGH, CRITICAL)
- Containerization
-Docker build with versioning:
-latest
-build-number
- Kubernetes Deployment
-Dynamic manifest generation
-Deployment + Service creation
-Automated rollout verification
- Observability
+---
+
+## Tech Stack
+
+- Java / Spring Boot  
+- Maven  
+- Jenkins (Declarative Pipeline)  
+- SonarQube (Code Quality Analysis)  
+- Trivy (Container Security Scanning)  
+- Docker  
+- Kubernetes (Minikube)  
+
+---
+
+## DevSecOps Capabilities
+
+### 🔹 Code Quality Enforcement
+- Integrated **SonarQube static analysis**
+- Enforced **quality gates** before proceeding in the pipeline
+
+---
+
+### 🔹 Security Scanning
+- Integrated **Trivy image scanning**
+- Detects vulnerabilities (HIGH, CRITICAL)
+- Generates structured security reports (JSON)
+
+---
+
+### 🔹 Containerization
+- Docker image build and tagging strategy:
+  - `latest`
+  - `<build-number>`
+- Reproducible builds for consistent deployments
+
+---
+
+### 🔹 Kubernetes Deployment
+- Dynamic manifest generation during pipeline execution  
+- Automated:
+  - Deployment creation  
+  - Service exposure  
+  - Rollout verification  
+
+---
+
+### 🔹 Observability & Artifacts
 
 Pipeline outputs:
 
-Test reports (JUnit)
-Security reports (Trivy JSON)
-Build artifacts (JAR)
- Pipeline Stages Explained
-1. Cleanup
+- **JUnit test reports**  
+- **Trivy security reports (JSON)**  
+- **Build artifacts (JAR files)**  
 
-Cleans Jenkins workspace to ensure fresh builds
+---
 
-2. Checkout
+## Pipeline Stages Explained
 
-Pulls latest code from GitHub
+### 1. Cleanup
+Cleans Jenkins workspace to ensure a fresh build environment.
 
-3. SonarQube Analysis
+### 2. Checkout
+Pulls the latest source code from GitHub.
 
-Runs static code analysis
+### 3. SonarQube Analysis
+Performs static code analysis for quality and maintainability.
 
-4. Quality Gate
+### 4. Quality Gate
+Validates code against predefined quality standards.
 
-Ensures code meets defined quality standards
+### 5. Build & Test
+Executes unit tests using Maven.
 
-5. Build & Test
+### 6. Package
+Builds the application JAR artifact.
 
-Runs unit tests using Maven
+### 7. Docker Build
+Builds and tags the Docker image.
 
-6. Package
+### 8. Trivy Scan
+Scans the container image for vulnerabilities.
 
-Builds application JAR
+### 9. Push to Docker Hub
+Pushes versioned and latest images to the registry.
 
-7. Docker Build
+### 10. Deploy to Kubernetes
+- Creates Deployment and Service  
+- Applies configuration  
+- Waits for rollout completion  
 
-Builds and tags Docker image
+### 11. Verify Deployment
+Validates:
+- Pods  
+- Services  
+- Deployment health  
 
-8. Trivy Scan
+---
 
-Scans image for vulnerabilities
+## Docker Image
 
-9. Push to Docker Hub
+- `queenivas/appointment-app:latest`  
+- `queenivas/appointment-app:<build-number>`  
 
-Pushes image to registry
+---
 
-10. Deploy to Kubernetes
-Creates deployment + service
-Applies configuration
-Waits for rollout
-11. Verify Deployment
+## Kubernetes Deployment
 
-Checks pods, services, and deployment status
+- **Namespace:** default  
+- **Replicas:** 2  
+- **Service Type:** NodePort  
+- **Port:** 30080  
 
- Docker Image
-queenivas/appointment-app:latest
-queenivas/appointment-app:<build-number>
- Kubernetes Deployment
-Namespace: default
-Replicas: 2
-Service Type: NodePort
-Port: 30080
+Access the application:
 
-Access application:
-
+```
 minikube service appointment-app --url
- Project Structure
+```
+
+---
+
+## Project Structure
+
+```
 .
 ├── Jenkinsfile
 ├── Dockerfile
 ├── pom.xml
 ├── src/
 ├── target/
- Key Highlights
-End-to-end DevSecOps pipeline
-Integrated security scanning (Trivy)
-Code quality enforcement (SonarQube)
-Automated Kubernetes deployment
-Production-like workflow using Minikube
- Future Improvements
-Helm charts for deployment
-GitOps (ArgoCD / Flux)
-TLS + Ingress controller
-External Kubernetes cluster (AKS / EKS)
-Observability (Prometheus + Grafana)
+```
+
+---
+
+## Key Highlights
+
+- End-to-end DevSecOps pipeline implementation  
+- Integrated security scanning (Trivy)  
+- Code quality enforcement (SonarQube)  
+- Automated Kubernetes deployment  
+- Production-like workflow using Minikube  
+
+---
+
+## Future Improvements
+
+- Helm-based Kubernetes deployments  
+- GitOps integration (ArgoCD / Flux)  
+- TLS + Ingress Controller  
+- Deployment to managed Kubernetes (AKS / EKS)  
+- Advanced observability (Prometheus + Grafana)  
+
+---
+
+## Summary
+
+This project demonstrates how to:
+
+- Build a secure CI/CD pipeline  
+- Integrate security into DevOps workflows (DevSecOps)  
+- Automate containerized application delivery  
+- Deploy and validate workloads in Kubernetes  
+
+---
+
+## Author
+
+DevOps & Cloud Engineer  
+Focused on DevSecOps, Cloud Architecture, and Platform Engineering
