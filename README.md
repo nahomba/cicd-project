@@ -187,7 +187,10 @@ This project demonstrates how to:
 - Build a secure CI/CD pipeline  
 - Integrate security into DevOps workflows (DevSecOps)  
 - Automate containerized application delivery  
-- Deploy and validate workloads in Kubernetes  
+- Deploy and validate workloads in Kubernetes
+
+  
+<img width="1805" height="830" alt="Jenkins" src="https://github.com/user-attachments/assets/df26f0a5-c12c-4b9c-895c-27fa9485930d" />
 
 ---
 
